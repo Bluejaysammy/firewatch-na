@@ -1,0 +1,251 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --panel-2: #f1f5f9;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-dim: #475569;
+  --accent: #ea580c;
+  --focus: #2563eb;
+}
+
+.dark {
+  --bg: #0b1220;
+  --panel: #101a2c;
+  --panel-2: #17233a;
+  --border: #263450;
+  --text: #e6edf7;
+  --text-dim: #9fb0c9;
+  --accent: #fb923c;
+  --focus: #60a5fa;
+}
+
+[data-contrast="high"] {
+  --border: #64748b;
+  --text-dim: #1e293b;
+  --focus: #1d4ed8;
+}
+
+.dark[data-contrast="high"] {
+  --bg: #000000;
+  --panel: #06080f;
+  --panel-2: #0d1220;
+  --border: #94a3b8;
+  --text: #ffffff;
+  --text-dim: #dbe4f0;
+  --focus: #93c5fd;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--border);
+  --color-ink: var(--text);
+  --color-ink-dim: var(--text-dim);
+  --color-accent: var(--accent);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  overscroll-behavior: none;
+}
+
+*:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+[data-contrast="high"] *:focus-visible {
+  outline-width: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: var(--panel);
+  color: var(--text);
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--focus);
+  border-radius: 6px;
+}
+.skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+}
+
+/* ---------- Leaflet theming ---------- */
+.leaflet-container {
+  background: var(--panel-2);
+  font: inherit;
+}
+
+.dark .leaflet-layer.fw-basemap-road,
+.dark .leaflet-layer.fw-basemap-terrain {
+  filter: brightness(0.72) contrast(1.05) saturate(0.85);
+}
+
+.leaflet-control-zoom a,
+.fw-map-btn {
+  background: var(--panel) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+.leaflet-bar {
+  border-color: var(--border) !important;
+}
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--panel) 85%, transparent) !important;
+  color: var(--text-dim) !important;
+  max-width: 60vw;
+}
+.leaflet-control-attribution a {
+  color: var(--focus) !important;
+}
+.leaflet-control-scale-line {
+  background: color-mix(in srgb, var(--panel) 80%, transparent) !important;
+  color: var(--text) !important;
+  border-color: var(--text-dim) !important;
+}
+.leaflet-tooltip {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.leaflet-tooltip-top:before {
+  border-top-color: var(--border);
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--panel);
+  color: var(--text);
+}
+
+.fw-cluster {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 9999px;
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+[data-contrast="high"] .fw-cluster {
+  border-width: 4px;
+  border-color: #fff;
+}
+
+.fw-station-icon {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: #b91c1c;
+  border: 2px solid #fff;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes fw-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(147, 51, 234, 0.6); }
+  70% { box-shadow: 0 0 0 12px rgba(147, 51, 234, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(147, 51, 234, 0); }
+}
+.fw-search-pin {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--focus);
+  border: 3px solid #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* thin scrollbars for panels */
+.fw-scroll {
+  scrollbar-width: thin;
+}
+
+/* Official road event marker (511 feeds) */
+.fw-closure-icon {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: #fff;
+  color: #b45309;
+  border: 2.5px solid #b45309;
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+.fw-closure-icon.fw-closure-full {
+  color: #b91c1c;
+  border-color: #b91c1c;
+}
+
+/* Sidebar tab transitions + interactive stat tiles */
+@keyframes fw-tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fw-tab-in {
+  animation: fw-tab-in 200ms ease-out;
+}
+
+.fw-tile {
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease,
+    border-color 150ms ease;
+}
+button.fw-tile:hover,
+button.fw-tile:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+.dark button.fw-tile:hover,
+.dark button.fw-tile:focus-visible {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+button.fw-tile:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.fw-row-btn {
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+.fw-row-btn:active {
+  transform: scale(0.99);
+}

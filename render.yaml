@@ -1,0 +1,18 @@
+# Render.com blueprint — connect the repo and Render provisions this service.
+services:
+  - type: web
+    name: firewatch-na
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: UPSTREAM_USER_AGENT
+        sync: false # set to "FireWatch-NA/1.0 (your-contact@example.com)"
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false # set to your public URL, e.g. https://firewatch.example.com
+      - key: FIRMS_MAP_KEY
+        sync: false
+      - key: OWM_API_KEY
+        sync: false
+      - key: WAQI_TOKEN
+        sync: false
