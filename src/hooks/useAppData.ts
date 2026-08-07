@@ -21,10 +21,37 @@ async function getJson<T>(url: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+/**
+ * Offline resilience: the last successful fire snapshot is persisted to
+ * localStorage and used as placeholder data, so a reload without a network
+ * connection (or a slow cold start) still shows the most recent picture
+ * while the real fetch proceeds. The header's "updated" timestamp and the
+ * offline banner make the data's age visible.
+ */
+const FIRES_SNAPSHOT_KEY = "fw-fires-snapshot";
+
+function readFiresSnapshot(): FiresResponse | undefined {
+  try {
+    const raw = localStorage.getItem(FIRES_SNAPSHOT_KEY);
+    return raw ? (JSON.parse(raw) as FiresResponse) : undefined;
+  } catch {
+    return undefined; // SSR, disabled storage, or corrupted JSON
+  }
+}
+
 export function useFires(refetchIntervalMs: number) {
   return useQuery<FiresResponse & { stale?: boolean }>({
     queryKey: ["fires"],
-    queryFn: () => getJson("/api/fires"),
+    queryFn: async () => {
+      const data = await getJson<FiresResponse & { stale?: boolean }>("/api/fires");
+      try {
+        localStorage.setItem(FIRES_SNAPSHOT_KEY, JSON.stringify(data));
+      } catch {
+        /* storage full or unavailable — persistence is best-effort */
+      }
+      return data;
+    },
+    placeholderData: readFiresSnapshot,
     refetchInterval: refetchIntervalMs,
     staleTime: 30_000,
     retry: 2,

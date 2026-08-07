@@ -108,6 +108,19 @@ export default function AppShell() {
   const [panelOpen, setPanelOpen] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [offline, setOffline] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial navigator state is only known client-side
+    setOffline(!navigator.onLine);
+    const on = () => setOffline(false);
+    const off = () => setOffline(true);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
 
   const showNotice = useCallback((msg: string) => {
     setNotice(msg);
@@ -221,6 +234,12 @@ export default function AppShell() {
         localSearch={localSearch}
       />
 
+      {offline && (
+        <div role="alert" className="border-b border-slate-500 bg-slate-500/10 px-3 py-1.5 text-xs">
+          You appear to be offline — showing the last loaded data. The map
+          will refresh automatically when the connection returns.
+        </div>
+      )}
       {fires.isError && (
         <div
           role="alert"

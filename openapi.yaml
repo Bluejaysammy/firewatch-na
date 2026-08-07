@@ -1,0 +1,138 @@
+openapi: 3.1.0
+info:
+  title: FireWatch NA API
+  version: "1.0"
+  description: >
+    Read-only JSON API behind the FireWatch NA wildfire dashboard. All
+    endpoints proxy official government/open data with server-side caching
+    and per-IP rate limiting (HTTP 429 with Retry-After when exceeded).
+    Attribution requirements of the upstream providers apply (see NOTICE.md).
+servers:
+  - url: /
+paths:
+  /api/fires:
+    get:
+      summary: Unified active-fire records for Canada, the US and Mexico
+      parameters:
+        - { name: country, in: query, schema: { type: string, example: "CA,US" }, description: Comma-separated ISO country codes (CA, US, MX) }
+        - { name: status, in: query, schema: { type: string, example: out_of_control }, description: Comma-separated statuses (out_of_control, active, being_held, under_control, contained, prescribed, info) }
+        - { name: minSizeHa, in: query, schema: { type: number } }
+        - { name: admin, in: query, schema: { type: string, example: CA-BC }, description: Comma-separated region codes }
+        - { name: since, in: query, schema: { type: string, format: date-time }, description: Only records updated at/after this time }
+      responses:
+        "200":
+          description: Fires plus per-source health
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fires: { type: array, items: { $ref: "#/components/schemas/Fire" } }
+                  sources: { type: array, items: { type: object } }
+                  fetchedAt: { type: string, format: date-time }
+                  stale: { type: boolean, description: True when upstream fetch failed and cached data is served }
+  /api/perimeters:
+    get:
+      summary: Fire perimeter polygons (GeoJSON FeatureCollection)
+      parameters:
+        - { name: country, in: query, required: true, schema: { type: string, enum: [us, ca] }, description: us = WFIGS mapped perimeters, ca = CWFIS M3 satellite estimates }
+      responses: { "200": { description: GeoJSON FeatureCollection } }
+  /api/hotspots:
+    get:
+      summary: Satellite thermal detections, last 24 h, North America
+      responses: { "200": { description: "{ hotspots: [...], source: CWFIS | FIRMS }" } }
+  /api/alerts:
+    get:
+      summary: US NWS fire-related alerts (GeoJSON)
+      responses: { "200": { description: GeoJSON FeatureCollection } }
+  /api/evacuations:
+    get:
+      summary: Canadian evacuation orders/alerts (GeoJSON; currently BC)
+      responses: { "200": { description: GeoJSON FeatureCollection with status order|alert per feature } }
+  /api/roads:
+    get:
+      summary: Fire-affected highways (derived from OSM + perimeters)
+      responses: { "200": { description: "{ roads: [...], segments: GeoJSON LineStrings, computedAt }" } }
+  /api/closures:
+    get:
+      summary: Official 511/Open511 road events, fire-related or near fires
+      responses: { "200": { description: "{ closures: [...], sources: [...] }" } }
+  /api/cameras:
+    get:
+      summary: 511 highway cameras within ~60 km of an active fire
+      responses: { "200": { description: "{ cameras: [...] }" } }
+  /api/stats:
+    get:
+      summary: Live dashboard aggregates
+      responses: { "200": { description: Totals, by-country/region counts, largest and recently-updated fires } }
+  /api/air:
+    get:
+      summary: Air quality at a point (Open-Meteo/CAMS)
+      parameters:
+        - { name: lat, in: query, required: true, schema: { type: number } }
+        - { name: lon, in: query, required: true, schema: { type: number } }
+      responses: { "200": { description: "US AQI, PM2.5/PM10, 24 h hourly outlook" } }
+  /api/weather:
+    get:
+      summary: Spot weather at a point (Open-Meteo)
+      parameters:
+        - { name: lat, in: query, required: true, schema: { type: number } }
+        - { name: lon, in: query, required: true, schema: { type: number } }
+      responses: { "200": { description: Temperature, humidity, wind, gusts, precipitation } }
+  /api/geocode:
+    get:
+      summary: Place search (Nominatim proxy, NA-limited)
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2 } }
+      responses: { "200": { description: "{ results: [{ label, lat, lon, type }] }" } }
+  /api/stations:
+    get:
+      summary: Fire stations from OSM within a bounding box
+      parameters:
+        - { name: bbox, in: query, required: true, schema: { type: string }, description: "west,south,east,north (max 4°×4°)" }
+      responses: { "200": { description: "{ stations: [...] }" } }
+  /api/smoke:
+    get:
+      summary: NOAA NDGD surface-smoke forecast image for a viewport
+      parameters:
+        - { name: bbox, in: query, required: true, schema: { type: string } }
+        - { name: width, in: query, required: true, schema: { type: integer, maximum: 2048 } }
+        - { name: height, in: query, required: true, schema: { type: integer, maximum: 2048 } }
+      responses: { "200": { description: PNG image, content: { image/png: {} } } }
+  /api/radar:
+    get:
+      summary: Latest RainViewer radar frame reference
+      responses: { "200": { description: "{ host, path, time }" } }
+  /api/config:
+    get:
+      summary: Which optional (key-gated) layers are enabled
+      responses: { "200": { description: "{ refreshDefaultMs, firmsEnabled, owmEnabled, waqiEnabled }" } }
+  /api/health:
+    get:
+      summary: Liveness probe
+      responses: { "200": { description: "{ status, uptimeSeconds, firesCached, firesFetchedAt }" } }
+  /api/stream:
+    get:
+      summary: Server-Sent Events stream ("fires" event on each cache refresh)
+      responses: { "200": { description: text/event-stream } }
+components:
+  schemas:
+    Fire:
+      type: object
+      description: Unified fire record (see src/lib/types.ts for authority)
+      properties:
+        id: { type: string }
+        name: { type: string }
+        country: { type: string, enum: [CA, US, MX] }
+        admin: { type: string, example: CA-BC }
+        lat: { type: number }
+        lon: { type: number }
+        sizeHa: { type: [number, "null"] }
+        containment: { type: [number, "null"] }
+        status: { type: string }
+        cause: { type: [string, "null"] }
+        discovered: { type: [string, "null"], format: date-time }
+        updated: { type: [string, "null"], format: date-time }
+        agency: { type: [string, "null"] }
+        evacuation: { type: boolean }
+        source: { type: string, enum: [WFIGS, CWFIS, CWFIS_HOTSPOT, FIRMS] }
