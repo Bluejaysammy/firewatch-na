@@ -42,6 +42,7 @@ const DEFAULT_LAYERS: LayerToggles = {
   stations: false,
   roads: true,
   closures: true,
+  cameras: false,
   aqi: false,
   wind: false,
   temp: false,

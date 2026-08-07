@@ -22,6 +22,7 @@ export interface LayerToggles {
   stations: boolean;
   roads: boolean;
   closures: boolean;
+  cameras: boolean;
   aqi: boolean;
   wind: boolean;
   temp: boolean;
@@ -174,6 +175,8 @@ export default function MapView({
   const smokeRef = useRef<L.ImageOverlay | null>(null);
   const roadsRef = useRef<L.GeoJSON | null>(null);
   const closuresRef = useRef<L.LayerGroup | null>(null);
+  const evacRef = useRef<L.GeoJSON | null>(null);
+  const camerasRef = useRef<L.LayerGroup | null>(null);
   const stationsRef = useRef<L.LayerGroup | null>(null);
   const searchPinRef = useRef<L.Marker | null>(null);
   const locateRef = useRef<L.LayerGroup | null>(null);
@@ -245,6 +248,33 @@ export default function MapView({
     staleTime: 5 * 60_000,
     refetchInterval: 5 * 60_000,
   });
+  const evacZones = useQuery({
+    queryKey: ["evacuations"],
+    queryFn: () => getJson<GeoJSON.FeatureCollection>("/api/evacuations"),
+    enabled: layers.alerts,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+  const cameras = useQuery({
+    queryKey: ["cameras"],
+    queryFn: () =>
+      getJson<{
+        cameras: {
+          id: string;
+          name: string;
+          road: string | null;
+          lat: number;
+          lon: number;
+          sourceLabel: string;
+          nearestFireKm: number;
+          nearestFireName: string;
+          views: { url: string; description: string | null }[];
+        }[];
+      }>("/api/cameras"),
+    enabled: layers.cameras,
+    staleTime: 15 * 60_000,
+    refetchInterval: 15 * 60_000,
+  });
 
   // ---------- map init ----------
   useEffect(() => {
@@ -309,6 +339,18 @@ export default function MapView({
         { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
       );
     }).addTo(map);
+
+    // North indicator: Leaflet cannot rotate the map, so north is always up.
+    const compass = new L.Control({ position: "topright" });
+    compass.onAdd = () => {
+      const div = L.DomUtil.create("div", "leaflet-bar fw-compass");
+      div.innerHTML = `<span aria-hidden="true">N<br>▲</span>`;
+      div.title = "North is up — the map does not rotate";
+      div.setAttribute("role", "img");
+      div.setAttribute("aria-label", "Compass: north is up; the map does not rotate");
+      return div;
+    };
+    compass.addTo(map);
 
     const cluster = L.markerClusterGroup({
       chunkedLoading: true,
@@ -593,6 +635,81 @@ export default function MapView({
       }
     ).addTo(map);
   }, [layers.alerts, alerts.data]);
+
+  // ---------- Canadian evacuation zones (provincial feeds) ----------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    evacRef.current?.remove();
+    evacRef.current = null;
+    if (!layers.alerts || !evacZones.data) return;
+    evacRef.current = L.geoJSON(evacZones.data, {
+      style: (f) => {
+        const isOrder = f?.properties?.status === "order";
+        return {
+          color: EVACUATION_COLOR,
+          weight: isOrder ? 2.5 : 1.5,
+          dashArray: isOrder ? undefined : "6 4",
+          fillColor: EVACUATION_COLOR,
+          fillOpacity: isOrder ? 0.28 : 0.12,
+        };
+      },
+      onEachFeature: (f, l) => {
+        const p = (f.properties ?? {}) as Record<string, unknown>;
+        const isOrder = p.status === "order";
+        l.bindPopup(
+          `<strong>EVACUATION ${isOrder ? "ORDER" : "ALERT"}</strong><br>` +
+            `${escapeHtml(String(p.name ?? ""))}<br>` +
+            `${escapeHtml(String(p.agency ?? ""))}` +
+            `<br><em>${escapeHtml(String(p.sourceLabel ?? ""))}${
+              p.updated ? ` · updated ${escapeHtml(String(p.updated))}` : ""
+            }</em>` +
+            `<br>${isOrder ? "Leave the area now — follow local authority instructions." : "Be ready to leave on short notice."}`,
+          { maxWidth: 300 }
+        );
+      },
+    }).addTo(map);
+  }, [layers.alerts, evacZones.data]);
+
+  // ---------- highway cameras (511) ----------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    camerasRef.current?.remove();
+    camerasRef.current = null;
+    if (!layers.cameras || !cameras.data) return;
+    const grp = L.layerGroup();
+    for (const c of cameras.data.cameras) {
+      const m = L.marker([c.lat, c.lon], {
+        icon: L.divIcon({
+          html: `<div class="fw-camera-icon" aria-hidden="true">▣</div>`,
+          className: "",
+          iconSize: [18, 18],
+        }),
+        keyboard: false,
+      });
+      const links = c.views
+        .slice(0, 4)
+        .map(
+          (v, i) =>
+            `<a href="${escapeHtml(v.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(
+              v.description || `View ${i + 1}`
+            )}</a>`
+        )
+        .join(" · ");
+      m.bindPopup(
+        `<strong>${escapeHtml(c.name)}</strong><br>` +
+          `${escapeHtml(c.road ?? "")} · ${escapeHtml(c.sourceLabel)}<br>` +
+          `${escapeHtml(String(c.nearestFireKm))} km from ${escapeHtml(c.nearestFireName)} fire<br>` +
+          links,
+        { maxWidth: 300 }
+      );
+      m.bindTooltip(escapeHtml(c.name));
+      m.addTo(grp);
+    }
+    grp.addTo(map);
+    camerasRef.current = grp;
+  }, [layers.cameras, cameras.data]);
 
   // ---------- fire-affected highways (derived) ----------
   useEffect(() => {

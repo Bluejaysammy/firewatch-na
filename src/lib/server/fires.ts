@@ -3,6 +3,7 @@ import { broadcast, cached } from "./cache";
 import { fetchUsFires } from "./sources/wfigs";
 import { fetchCaFires, fetchHotspots, mexicoFiresFromHotspots } from "./sources/cwfis";
 import { fetchFireAlerts, isEvacuationEvent } from "./sources/nws";
+import { getEvacZones } from "./sources/evac";
 import { pointInGeometry, type GeoJsonGeometry } from "@/lib/geo";
 import type { Country, Fire, FireStats, FiresResponse, SourceHealth } from "@/lib/types";
 
@@ -61,19 +62,29 @@ async function aggregateFires(): Promise<FiresResponse> {
     }
   });
 
-  // Flag fires covered by an active evacuation alert polygon (US NWS).
+  // Flag fires covered by an active evacuation polygon: US NWS evacuation
+  // alerts plus Canadian provincial zones (currently BC's official layer).
+  const evacGeoms: GeoJsonGeometry[] = [];
   try {
     const alerts = await getAlerts();
-    const evacGeoms = alerts.value.features
-      .filter((f) => f.geometry && isEvacuationEvent(f.properties.event))
-      .map((f) => f.geometry as GeoJsonGeometry);
-    if (evacGeoms.length > 0) {
-      for (const fire of fires) {
-        fire.evacuation = evacGeoms.some((g) => pointInGeometry(fire.lon, fire.lat, g));
+    for (const f of alerts.value.features) {
+      if (f.geometry && isEvacuationEvent(f.properties.event)) {
+        evacGeoms.push(f.geometry as GeoJsonGeometry);
       }
     }
   } catch {
     // Alerts are supplementary; fire data still ships without them.
+  }
+  try {
+    const evac = await getEvacZones();
+    for (const z of evac.value.zones) evacGeoms.push(z.geometry);
+  } catch {
+    // Provincial evacuation feeds are supplementary too.
+  }
+  if (evacGeoms.length > 0) {
+    for (const fire of fires) {
+      fire.evacuation = evacGeoms.some((g) => pointInGeometry(fire.lon, fire.lat, g));
+    }
   }
 
   const response: FiresResponse = {

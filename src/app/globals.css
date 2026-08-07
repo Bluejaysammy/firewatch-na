@@ -208,6 +208,33 @@ body {
   border-color: #b91c1c;
 }
 
+/* Highway camera marker (511 feeds) */
+.fw-camera-icon {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--panel);
+  color: var(--text);
+  border: 2px solid var(--text-dim);
+  font-size: 10px;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Static compass (north indicator) */
+.fw-compass {
+  background: var(--panel);
+  color: var(--text);
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  padding: 3px 6px;
+  cursor: default;
+}
+
 /* Sidebar tab transitions + interactive stat tiles */
 @keyframes fw-tab-in {
   from {

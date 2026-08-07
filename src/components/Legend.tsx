@@ -102,6 +102,17 @@ export default function Legend() {
             </dt>
             <dd className="text-ink-dim">Official road event (511)</dd>
           </div>
+          <div className="flex items-start gap-2">
+            <dt className="mt-1">
+              <span
+                aria-hidden="true"
+                className="block h-2 w-4 rounded-sm"
+                style={{ background: "rgba(147,51,234,.3)", border: "1.5px solid #9333ea" }}
+              />
+              <span className="sr-only">Purple polygon:</span>
+            </dt>
+            <dd className="text-ink-dim">Evacuation zone (solid = order, dashed = alert)</dd>
+          </div>
           <p className="border-t border-line pt-1.5 text-[11px] leading-snug text-ink-dim">
             Marker size reflects reported fire size. US status is derived from
             containment %; Canadian status is reported by agencies.

@@ -117,6 +117,40 @@ interface ClosureSourceDef {
   fetcher: () => Promise<RoadClosure[]>;
 }
 
+/**
+ * Operators can add more feeds without code changes: set EXTRA_511_SOURCES
+ * to a JSON array like
+ * [{"id":"mn-511","label":"Minnesota 511","type":"v2","url":"https://511mn.org/api/v2/get/event"}]
+ * Supported types: "v2" (the common 511 schema) and "open511".
+ */
+function extraSources(): ClosureSourceDef[] {
+  const raw = process.env.EXTRA_511_SOURCES;
+  if (!raw) return [];
+  try {
+    const defs = JSON.parse(raw) as { id: string; label: string; type: string; url: string }[];
+    return defs
+      .filter(
+        (d) =>
+          d.id && d.label && /^https:\/\//.test(d.url) &&
+          (d.type === "v2" || d.type === "open511")
+      )
+      .map((d) => ({
+        id: d.id,
+        label: d.label,
+        fetcher: async () => {
+          if (d.type === "open511") {
+            const res = await fetchJson<{ events?: Open511Event[] }>(d.url);
+            return normalizeOpen511(res.events ?? [], d.id, d.label);
+          }
+          const res = await fetchJson<Icone511Event[]>(d.url);
+          return normalize511v2(res, d.id, d.label);
+        },
+      }));
+  } catch {
+    return [];
+  }
+}
+
 const CLOSURE_SOURCES: ClosureSourceDef[] = [
   {
     id: "bc-open511",
@@ -187,10 +221,11 @@ export function filterFireRelevant(
 const CLOSURES_TTL_MS = Number(process.env.CLOSURES_TTL_SECONDS ?? 300) * 1000;
 
 export async function getClosures() {
+  const sources = [...CLOSURE_SOURCES, ...extraSources()];
   return cached("closures", CLOSURES_TTL_MS, async (): Promise<ClosuresResponse> => {
     const [firesResult, ...results] = await Promise.allSettled([
       getFires(),
-      ...CLOSURE_SOURCES.map((s) => s.fetcher()),
+      ...sources.map((s) => s.fetcher()),
     ]);
     const fires =
       firesResult.status === "fulfilled"
@@ -198,13 +233,13 @@ export async function getClosures() {
         : [];
 
     const closures: RoadClosure[] = [];
-    const sources: SourceHealth[] = [];
+    const health: SourceHealth[] = [];
     results.forEach((r, i) => {
-      const def = CLOSURE_SOURCES[i];
+      const def = sources[i];
       if (r.status === "fulfilled") {
         const list = r.value as RoadClosure[];
         closures.push(...list);
-        sources.push({
+        health.push({
           id: def.id,
           label: def.label,
           ok: true,
@@ -213,7 +248,7 @@ export async function getClosures() {
           count: list.length,
         });
       } else {
-        sources.push({
+        health.push({
           id: def.id,
           label: def.label,
           ok: false,
@@ -226,8 +261,105 @@ export async function getClosures() {
 
     return {
       closures: filterFireRelevant(closures, fires),
-      sources,
+      sources: health,
       fetchedAt: new Date().toISOString(),
     };
+  });
+}
+
+// ---------- highway cameras (511 v2 `get/cameras`) ----------
+export interface HighwayCamera {
+  id: string;
+  source: string;
+  sourceLabel: string;
+  name: string;
+  road: string | null;
+  lat: number;
+  lon: number;
+  views: { url: string; description: string | null }[];
+  nearestFireKm: number;
+  nearestFireName: string;
+}
+
+interface Icone511Camera {
+  Id?: number | string;
+  Roadway?: string;
+  Location?: string;
+  Latitude?: number;
+  Longitude?: number;
+  Views?: { Url?: string; Status?: string; Description?: string }[];
+}
+
+const CAMERA_SOURCES = [
+  { id: "ab-511", label: "Alberta 511", url: "https://511.alberta.ca/api/v2/get/cameras" },
+  { id: "on-511", label: "Ontario 511", url: "https://511on.ca/api/v2/get/cameras" },
+];
+
+/** Cameras within `nearKm` of an active fire — situational views, not a full atlas. */
+export function filterCamerasNearFires(
+  cams: HighwayCamera[],
+  fires: Pick<Fire, "name" | "lat" | "lon" | "status" | "sizeHa">[],
+  nearKm = 60
+): HighwayCamera[] {
+  const active = fires.filter(
+    (f) =>
+      (f.status === "out_of_control" || f.status === "active" || f.status === "being_held") &&
+      (f.sizeHa ?? 0) >= 100
+  );
+  const out: HighwayCamera[] = [];
+  for (const c of cams) {
+    let best = Infinity;
+    let bestName = "";
+    for (const f of active) {
+      const d = haversineKm(c.lat, c.lon, f.lat, f.lon);
+      if (d < best) {
+        best = d;
+        bestName = f.name;
+      }
+    }
+    if (best <= nearKm) {
+      out.push({ ...c, nearestFireKm: Math.round(best * 10) / 10, nearestFireName: bestName });
+    }
+  }
+  return out.sort((a, b) => a.nearestFireKm - b.nearestFireKm).slice(0, 400);
+}
+
+const CAMERAS_TTL_MS = Number(process.env.CAMERAS_TTL_SECONDS ?? 900) * 1000;
+
+export async function getCameras() {
+  return cached("cameras", CAMERAS_TTL_MS, async () => {
+    const [firesResult, ...results] = await Promise.allSettled([
+      getFires(),
+      ...CAMERA_SOURCES.map((s) => fetchJson<Icone511Camera[]>(s.url, { timeoutMs: 45000 })),
+    ]);
+    const fires =
+      firesResult.status === "fulfilled"
+        ? (firesResult.value as Awaited<ReturnType<typeof getFires>>).value.fires
+        : [];
+    const cams: HighwayCamera[] = [];
+    results.forEach((r, i) => {
+      if (r.status !== "fulfilled") return;
+      const src = CAMERA_SOURCES[i];
+      for (const c of r.value) {
+        if (typeof c.Latitude !== "number" || typeof c.Longitude !== "number") continue;
+        const views = (c.Views ?? [])
+          .filter((v) => v.Url && v.Status !== "Disabled")
+          .map((v) => ({ url: v.Url as string, description: v.Description ?? null }));
+        if (views.length === 0) continue;
+        cams.push({
+          id: `${src.id}-${c.Id ?? cams.length}`,
+          source: src.id,
+          sourceLabel: src.label,
+          name: c.Location ?? "Highway camera",
+          road: c.Roadway ?? null,
+          lat: c.Latitude,
+          lon: c.Longitude,
+          views,
+          nearestFireKm: Infinity,
+          nearestFireName: "",
+        });
+      }
+    });
+    return { cameras: filterCamerasNearFires(cams, fires), fetchedAt: new Date().toISOString() };
   });
 }

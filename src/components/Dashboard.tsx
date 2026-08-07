@@ -246,7 +246,7 @@ export default function Dashboard({
         <StatTile
           label="Evacuation alerts"
           value={<AnimatedNumber value={stats.evacuations} />}
-          hint="fires inside active NWS evacuation areas"
+          hint="fires inside active evacuation zones (BC + US NWS)"
           onClick={() => onApplyFilter({ evacOnly: true })}
           actionHint="Show only fires with evacuation alerts"
         />

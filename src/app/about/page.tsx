@@ -98,11 +98,17 @@ export default function AboutPage() {
               locations and highway geometry via Overpass.
             </li>
             <li>
-              <strong>Provincial 511 services</strong>: official road closures
-              and traffic events from DriveBC (Open511), Alberta 511 and
-              Ontario 511, filtered to fire-related or fire-adjacent events.
-              Additional state/provincial feeds can be added via the source
-              registry.
+              <strong>Provincial 511 services</strong>: official road closures,
+              traffic events and highway cameras from DriveBC (Open511),
+              Alberta 511 and Ontario 511, filtered to fire-related or
+              fire-adjacent. Additional state/provincial feeds can be added
+              via configuration.
+            </li>
+            <li>
+              <strong>EmergencyInfoBC</strong> (BC Data Catalogue, Open
+              Government Licence – BC): official evacuation order and alert
+              areas for British Columbia, drawn on the map and used to flag
+              fires inside evacuation zones.
             </li>
             <li>
               <strong>Esri</strong>: satellite imagery and hybrid labels
@@ -130,10 +136,13 @@ export default function AboutPage() {
             informational.
           </p>
           <p>
-            A purple ring marks fires located inside an active NWS evacuation
-            alert area (US only — Canadian evacuation orders are issued by
-            provinces and municipalities and are not available as a unified
-            feed).
+            A purple ring marks fires located inside an active evacuation
+            area — BC&apos;s official EmergencyInfoBC zones and US NWS
+            evacuation alerts. Other Canadian provinces issue orders
+            per-municipality without a unified feed; their zones appear as
+            feeds are added. Mexican records are satellite detection clusters
+            (grouped hotspots with counts and estimated area), not confirmed
+            incidents.
           </p>
         </Section>
 

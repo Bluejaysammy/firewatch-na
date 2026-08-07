@@ -2,6 +2,7 @@ import "server-only";
 import { fetchJson, fetchText } from "../http";
 import { parseCsv } from "@/lib/csv";
 import { statusFromCwfis } from "@/lib/status";
+import { clusterDetections } from "@/lib/mxcluster";
 import type { Fire } from "@/lib/types";
 import type { PerimeterCollection } from "./wfigs";
 
@@ -149,25 +150,32 @@ export async function fetchHotspots(): Promise<Hotspot[]> {
   return spots;
 }
 
-/** Mexico: represent satellite detections as informational fire records. */
+/**
+ * Mexico: no public incident API exists, so satellite detections are grouped
+ * into spatial clusters (~15 km cells) and shown as informational records
+ * with detection counts and summed estimated area.
+ */
 export function mexicoFiresFromHotspots(spots: Hotspot[]): Fire[] {
-  return spots
-    .filter((s) => s.agency === "MX")
-    .slice(0, 2000)
-    .map((s, i) => ({
-      id: `mx-hs-${s.lat.toFixed(4)}-${s.lon.toFixed(4)}-${i}`,
-      name: `Satellite detection (${s.sensor ?? "satellite"})`,
+  const detections = spots.filter((s) => s.agency === "MX");
+  return clusterDetections(detections)
+    .slice(0, 500)
+    .map((c) => ({
+      id: `mx-hs-${c.lat.toFixed(3)}-${c.lon.toFixed(3)}`,
+      name:
+        c.count === 1
+          ? "Satellite detection (VIIRS/MODIS)"
+          : `Detection cluster (${c.count} hotspots)`,
       country: "MX" as const,
       admin: "MX",
-      lat: s.lat,
-      lon: s.lon,
-      sizeHa: s.estAreaHa,
+      lat: c.lat,
+      lon: c.lon,
+      sizeHa: c.totalAreaHa,
       containment: null,
       status: "info" as const,
       rawStatus: null,
       cause: null,
-      discovered: s.reportedAt,
-      updated: s.reportedAt,
+      discovered: c.latest,
+      updated: c.latest,
       agency: "CONAFOR (see national reports)",
       agencyUrl:
         "https://www.gob.mx/conafor/documentos/reporte-semanal-de-incendios",
