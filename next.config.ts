@@ -47,6 +47,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  // Native modules used by the community feature must not be bundled.
+  serverExternalPackages: ["better-sqlite3", "sharp"],
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
