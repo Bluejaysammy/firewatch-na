@@ -5,7 +5,13 @@ services:
     runtime: docker
     plan: starter
     healthCheckPath: /api/health
+    disk:
+      name: firewatch-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
+      - key: DATA_DIR
+        value: /data
       - key: UPSTREAM_USER_AGENT
         sync: false # set to "FireWatch-NA/1.0 (your-contact@example.com)"
       - key: NEXT_PUBLIC_SITE_URL
