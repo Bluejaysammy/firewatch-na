@@ -5,6 +5,10 @@ services:
       - "3000:3000"
     env_file:
       - .env.local
+    environment:
+      DATA_DIR: /app/data
+    volumes:
+      - firewatch-data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
@@ -12,3 +16,6 @@ services:
       timeout: 10s
       start_period: 20s
       retries: 3
+
+volumes:
+  firewatch-data:
