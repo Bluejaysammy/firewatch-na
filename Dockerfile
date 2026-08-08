@@ -2,6 +2,9 @@
 FROM node:24-alpine AS builder
 WORKDIR /app
 
+# Toolchain for native modules (better-sqlite3, sharp) when no prebuild fits.
+RUN apk add --no-cache python3 make g++ libc6-compat
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -16,9 +19,12 @@ WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
-    HOSTNAME=0.0.0.0
+    HOSTNAME=0.0.0.0 \
+    DATA_DIR=/app/data
 
-RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
+RUN apk add --no-cache libc6-compat \
+  && addgroup -S nodejs && adduser -S nextjs -G nodejs \
+  && mkdir -p /app/data && chown nextjs:nodejs /app/data
 
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
