@@ -7,6 +7,7 @@ import "leaflet.markercluster";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import type { ClosuresResponse, Fire, FireStatus, RoadsResponse } from "@/lib/types";
+import type { CommunityReport } from "@/components/community/ReportPanel";
 import { STATUS_META, EVACUATION_COLOR, statusColor } from "@/lib/status";
 import { formatArea, relativeTime } from "@/lib/format";
 
@@ -23,6 +24,7 @@ export interface LayerToggles {
   roads: boolean;
   closures: boolean;
   cameras: boolean;
+  community: boolean;
   aqi: boolean;
   wind: boolean;
   temp: boolean;
@@ -46,6 +48,8 @@ interface MapViewProps {
   highContrast: boolean;
   flyTo: FlyTarget | null;
   onNotice: (msg: string) => void;
+  onSelectReport: (report: CommunityReport) => void;
+  onCenter: (center: { lat: number; lon: number }) => void;
 }
 
 interface Hotspot {
@@ -160,6 +164,8 @@ export default function MapView({
   highContrast,
   flyTo,
   onNotice,
+  onSelectReport,
+  onCenter,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -177,6 +183,7 @@ export default function MapView({
   const closuresRef = useRef<L.LayerGroup | null>(null);
   const evacRef = useRef<L.GeoJSON | null>(null);
   const camerasRef = useRef<L.LayerGroup | null>(null);
+  const communityRef = useRef<L.LayerGroup | null>(null);
   const stationsRef = useRef<L.LayerGroup | null>(null);
   const searchPinRef = useRef<L.Marker | null>(null);
   const locateRef = useRef<L.LayerGroup | null>(null);
@@ -187,12 +194,16 @@ export default function MapView({
   const layersRef = useRef(layers);
   const onSelectRef = useRef(onSelect);
   const onNoticeRef = useRef(onNotice);
+  const onSelectReportRef = useRef(onSelectReport);
+  const onCenterRef = useRef(onCenter);
   useEffect(() => {
     hcRef.current = highContrast;
     layersRef.current = layers;
     onSelectRef.current = onSelect;
     onNoticeRef.current = onNotice;
-  }, [highContrast, layers, onSelect, onNotice]);
+    onSelectReportRef.current = onSelectReport;
+    onCenterRef.current = onCenter;
+  }, [highContrast, layers, onSelect, onNotice, onSelectReport, onCenter]);
 
   // Imperative refresh hooks filled in by the map-init effect.
   const smokeRefresh = useRef<() => void>(() => {});
@@ -254,6 +265,13 @@ export default function MapView({
     enabled: layers.alerts,
     staleTime: 5 * 60_000,
     refetchInterval: 5 * 60_000,
+  });
+  const reports = useQuery({
+    queryKey: ["reports"],
+    queryFn: () => getJson<{ reports: CommunityReport[] }>("/api/reports"),
+    enabled: layers.community,
+    staleTime: 60_000,
+    refetchInterval: 2 * 60_000,
   });
   const cameras = useQuery({
     queryKey: ["cameras"],
@@ -444,6 +462,8 @@ export default function MapView({
     const onMoveEnd = () => {
       void refreshStations();
       refreshSmoke();
+      const c = map.getCenter();
+      onCenterRef.current({ lat: c.lat, lon: c.lng });
     };
     map.on("moveend", onMoveEnd);
 
@@ -635,6 +655,34 @@ export default function MapView({
       }
     ).addTo(map);
   }, [layers.alerts, alerts.data]);
+
+  // ---------- community reports (unverified, user-submitted) ----------
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    communityRef.current?.remove();
+    communityRef.current = null;
+    if (!layers.community || !reports.data) return;
+    const grp = L.layerGroup();
+    for (const r of reports.data.reports) {
+      const emoji = r.kind === "smoke" ? "💨" : r.kind === "fire" ? "🔥" : "💬";
+      const m = L.marker([r.lat, r.lon], {
+        icon: L.divIcon({
+          html: `<div class="fw-report-icon" aria-hidden="true">${emoji}</div>`,
+          className: "",
+          iconSize: [22, 22],
+        }),
+        keyboard: false,
+      });
+      m.bindTooltip(
+        `<strong>Community report (unverified)</strong><br>${escapeHtml(r.body.slice(0, 80))}`
+      );
+      m.on("click", () => onSelectReportRef.current(r));
+      m.addTo(grp);
+    }
+    grp.addTo(map);
+    communityRef.current = grp;
+  }, [layers.community, reports.data]);
 
   // ---------- Canadian evacuation zones (provincial feeds) ----------
   useEffect(() => {

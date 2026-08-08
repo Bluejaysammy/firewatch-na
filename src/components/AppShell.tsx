@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useClosures,
   useConfig,
@@ -21,6 +21,9 @@ import FiltersPanel from "./FiltersPanel";
 import LayersPanel from "./LayersPanel";
 import Legend from "./Legend";
 import FireDetail from "./FireDetail";
+import AuthDialog from "./community/AuthDialog";
+import ReportDialog from "./community/ReportDialog";
+import ReportPanel, { type CommunityReport } from "./community/ReportPanel";
 import type { BaseLayerId, FlyTarget, LayerToggles } from "./map/MapView";
 
 const MapView = dynamic(() => import("./map/MapView"), {
@@ -43,6 +46,7 @@ const DEFAULT_LAYERS: LayerToggles = {
   roads: true,
   closures: true,
   cameras: false,
+  community: true,
   aqi: false,
   wind: false,
   temp: false,
@@ -102,8 +106,37 @@ export default function AppShell() {
   };
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedReport, setSelectedReport] = useState<CommunityReport | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const mapCenter = useRef({ lat: 52, lon: -100 });
   const [flyTo, setFlyTo] = useState<FlyTarget | null>(null);
   const flyNonce = useRef(0);
+
+  const me = useQuery({
+    queryKey: ["me"],
+    queryFn: async () => {
+      const res = await fetch("/api/auth/me");
+      if (!res.ok) throw new Error("auth check failed");
+      return (await res.json()) as { user: { username: string; role: string } | null };
+    },
+    staleTime: 5 * 60_000,
+  });
+  const currentUser = me.data?.user ?? null;
+
+  const signOut = useCallback(async () => {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    queryClient.invalidateQueries({ queryKey: ["me"] });
+  }, [queryClient]);
+
+  // Snapshot of the map centre taken when the dialog opens (reading the
+  // live ref during render is not allowed).
+  const [reportCenter, setReportCenter] = useState({ lat: 52, lon: -100 });
+  const openReportFlow = useCallback(() => {
+    setReportCenter(mapCenter.current);
+    if (currentUser) setReportOpen(true);
+    else setAuthOpen(true);
+  }, [currentUser]);
   const [tab, setTab] = useState<Tab>("dashboard");
   const [panelOpen, setPanelOpen] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
@@ -145,12 +178,18 @@ export default function AppShell() {
 
   const selectFire = useCallback(
     (id: string) => {
+      setSelectedReport(null);
       setSelectedId(id);
       const f = (fires.data?.fires ?? []).find((x) => x.id === id);
       if (f) goTo({ lat: f.lat, lon: f.lon, zoom: 9 });
     },
     [fires.data, goTo]
   );
+
+  const selectReport = useCallback((r: CommunityReport) => {
+    setSelectedId(null);
+    setSelectedReport(r);
+  }, []);
 
   const manualRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["fires"] });
@@ -232,6 +271,9 @@ export default function AppShell() {
         onGo={goTo}
         onNotice={showNotice}
         localSearch={localSearch}
+        user={currentUser}
+        onSignIn={() => setAuthOpen(true)}
+        onSignOut={signOut}
       />
 
       {offline && (
@@ -340,7 +382,18 @@ export default function AppShell() {
             highContrast={highContrast}
             flyTo={flyTo}
             onNotice={showNotice}
+            onSelectReport={selectReport}
+            onCenter={(c) => {
+              mapCenter.current = c;
+            }}
           />
+          <button
+            type="button"
+            onClick={openReportFlow}
+            className="absolute bottom-10 left-2 z-[1000] rounded-lg bg-accent px-3 py-2 text-sm font-bold text-white shadow-lg hover:opacity-90"
+          >
+            🔥 Report smoke / fire
+          </button>
           <Legend />
           {!panelOpen && (
             <button
@@ -351,11 +404,19 @@ export default function AppShell() {
               ☰ Panels
             </button>
           )}
-          {selectedFire && (
+          {selectedFire && !selectedReport && (
             <FireDetail
               fire={selectedFire}
               onClose={() => setSelectedId(null)}
               onZoomTo={(f) => goTo({ lat: f.lat, lon: f.lon, zoom: 11 })}
+            />
+          )}
+          {selectedReport && (
+            <ReportPanel
+              report={selectedReport}
+              currentUser={currentUser}
+              onClose={() => setSelectedReport(null)}
+              onNotice={showNotice}
             />
           )}
         </main>
@@ -386,6 +447,14 @@ export default function AppShell() {
           ? `Fire data updated. ${visibleFires.length} fires shown.`
           : ""}
       </div>
+      {authOpen && <AuthDialog onClose={() => setAuthOpen(false)} />}
+      {reportOpen && (
+        <ReportDialog
+          center={reportCenter}
+          onClose={() => setReportOpen(false)}
+          onPosted={showNotice}
+        />
+      )}
       {notice && (
         <div
           role="status"

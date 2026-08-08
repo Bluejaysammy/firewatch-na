@@ -200,6 +200,17 @@ export default function AboutPage() {
           </p>
         </Section>
 
+        <Section title="Policies">
+          <p>
+            Full standalone pages:{" "}
+            <Link className="text-[var(--focus)] underline" href="/privacy">Privacy Policy</Link>,{" "}
+            <Link className="text-[var(--focus)] underline" href="/terms">Terms of Use</Link>,{" "}
+            <Link className="text-[var(--focus)] underline" href="/safety">Safety &amp; Community Guidelines</Link>.
+            Community reports are optional, account-based, publicly visible,
+            and always labelled as unverified.
+          </p>
+        </Section>
+
         <Section title="Contact & source code">
           <p>
             Configuration, deployment instructions and the full source are in

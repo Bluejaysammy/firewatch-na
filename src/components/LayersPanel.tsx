@@ -28,6 +28,7 @@ const OVERLAYS: OverlayDef[] = [
   { key: "roads", label: "Fire-affected highways", hint: "Major roads crossing (solid red) or near (dashed amber) active fires — derived from OSM + perimeters" },
   { key: "closures", label: "Road closures & events (511)", hint: "Official DriveBC, Alberta 511 and Ontario 511 events that are fire-related or near active fires" },
   { key: "cameras", label: "Highway cameras", hint: "511 traffic cameras within 60 km of an active fire (AB/ON; opens official camera pages)" },
+  { key: "community", label: "Community reports", hint: "Unverified smoke/fire sightings and notes posted by signed-in users; auto-expire after 7 days" },
   { key: "aqi", label: "Air Quality Index", hint: "AQI ground-station tiles", requires: "waqi" },
   { key: "wind", label: "Wind speed & direction", hint: "OpenWeatherMap wind layer", requires: "owm" },
   { key: "temp", label: "Temperature", hint: "OpenWeatherMap temperature layer", requires: "owm" },

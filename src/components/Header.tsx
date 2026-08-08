@@ -26,6 +26,9 @@ export default function Header({
   onGo,
   onNotice,
   localSearch,
+  user,
+  onSignIn,
+  onSignOut,
 }: {
   fetchedAt: string | null;
   sources: SourceHealth[];
@@ -36,6 +39,9 @@ export default function Header({
   onGo: (t: { lat: number; lon: number; zoom?: number; label?: string }) => void;
   onNotice: (msg: string) => void;
   localSearch?: (q: string) => LocalHit[];
+  user?: { username: string } | null;
+  onSignIn?: () => void;
+  onSignOut?: () => void;
 }) {
   const { mode, setMode, highContrast, setHighContrast } = useTheme();
   const [, tick] = useState(0);
@@ -129,6 +135,25 @@ export default function Header({
         >
           HC
         </button>
+
+        {user ? (
+          <button
+            type="button"
+            onClick={onSignOut}
+            title={`Signed in as ${user.username} — click to sign out`}
+            className="rounded-md border border-line px-2 py-1 font-medium hover:bg-panel-2"
+          >
+            {user.username} · Sign out
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onSignIn}
+            className="rounded-md border border-line px-2 py-1 font-medium hover:bg-panel-2"
+          >
+            Sign in
+          </button>
+        )}
 
         <Link
           href="/about"
