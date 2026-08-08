@@ -64,6 +64,32 @@ handlers) that proxies, caches, validates and rate-limits every upstream feed.
   hotspots, lazy-loaded map bundle, zoom-gated Overpass queries, HTTP cache
   headers
 
+## Community reports (accounts)
+
+Signed-in users can post smoke/fire sightings with photos and discuss them;
+everything is labelled **unverified** and never presented as official.
+Security model:
+
+- Accounts are **email-free by design** (data minimization): username +
+  scrypt-hashed password only. No email means no password reset — documented
+  in the UI. Sessions are 256-bit tokens (stored hashed) in httpOnly,
+  SameSite=Lax, Secure cookies; cross-origin mutations are rejected.
+- All content is validated (zod), length-capped, and rendered as text —
+  never as HTML. Photos are re-encoded server-side with sharp, which strips
+  EXIF/GPS metadata and neutralizes malformed files (JPEG/PNG/WebP, ≤6 MB).
+- Abuse controls: per-IP and per-account quotas (6 reports, 30 comments per
+  hour), community flagging (3 flags auto-hide), owner/admin deletion
+  (`ADMIN_USERNAMES` env grants moderator powers), and automatic expiry of
+  reports after 7 days so stale sightings don't mislead.
+- Storage is SQLite at `DATA_DIR` (default `./data`). **Production needs a
+  persistent volume** — `render.yaml` already mounts a 1 GB disk at `/data`,
+  and `docker-compose.yml` mounts a named volume. Without one, accounts and
+  reports reset on redeploy.
+
+Policy pages ship at `/privacy`, `/terms` and `/safety` (community
+guidelines), plus `public/ads.txt` (template for ad networks),
+`public/.well-known/security.txt`, and `docs/MONETIZATION.md`.
+
 ## Quick start
 
 ```bash
@@ -210,13 +236,22 @@ each source is reported per-request in `sources[]` and surfaced in the header.
 
 ## Known limitations (honest by design)
 
-- **Mexico** has no public machine-readable incident feed; we show satellite
-  detections labelled as such, with links to CONAFOR's official reports.
-- **Canadian evacuation orders** are issued per-province/municipality with no
-  unified feed; the purple evacuation flag currently covers US NWS alerts.
-  Provincial feeds can be added via the source registry.
+- **Mexico** has no public machine-readable incident feed. Satellite
+  detections are grouped into ~15 km clusters with counts and estimated
+  areas, clearly labelled, with links to CONAFOR's official reports.
+- **Canadian evacuation orders** have no unified national feed. BC's
+  official EmergencyInfoBC layer is integrated (zones drawn on the map,
+  purple flags applied to fires inside them, alongside US NWS evacuation
+  alerts); other provinces publish via Alert Ready/municipal ArcGIS and can
+  be added to the registry in `src/lib/server/sources/evac.ts`.
+- **Road closures**: DriveBC, Alberta 511 and Ontario 511 are built in;
+  additional 511/Open511 feeds can be added with zero code via the
+  `EXTRA_511_SOURCES` env var. **Highway cameras** near active fires are
+  included for AB/ON (popups link to official camera pages). **Shelters**
+  still have no open continent-wide feed.
 - Wind/temperature/AQI *map tiles* and FIRMS hotspots need free keys (see
   `.env.example`); per-fire wind, temperature and AQI numbers work keyless.
-- Road closures, highway cameras and shelters have no continent-wide open
-  feeds; regional 511/ArcGIS feeds can be added as layers via the registry.
-- Leaflet does not support map rotation; a compass rose is therefore omitted.
+  (ECCC GeoMet WMS was evaluated as a keyless alternative but its map
+  renderer currently returns errors; revisit via `geo.weather.gc.ca`.)
+- Leaflet cannot rotate the map, so a static north indicator is shown
+  instead of an interactive compass.
