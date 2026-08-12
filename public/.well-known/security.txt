@@ -1,0 +1,6 @@
+# security.txt (RFC 9116) — how researchers reach you about vulnerabilities.
+
+Contact: https://github.com/Bluejaysammy/firewatch-na/security/advisories/new
+Policy: https://github.com/Bluejaysammy/firewatch-na/blob/main/SECURITY.md
+Expires: 2027-08-31T00:00:00.000Z
+Preferred-Languages: en
