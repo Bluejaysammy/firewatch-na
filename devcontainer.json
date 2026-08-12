@@ -1,0 +1,10 @@
+{
+  "name": "FireWatch NA",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "FireWatch NA", "onAutoForward": "openBrowserOnce" }
+  },
+  "postCreateCommand": "npm install && (npm approve-scripts better-sqlite3 sharp || true) && (npm rebuild better-sqlite3 sharp || true)",
+  "postAttachCommand": "npm run dev"
+}
